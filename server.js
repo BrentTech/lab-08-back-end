@@ -139,7 +139,7 @@ function Yelp(restaurant) {
 	this.name = restaurant.name;
 	this.rating = restaurant.rating;
 	this.price = restaurant.price;
-	this.img_url = restaurant.img_url;
+	this.image_url = restaurant.image_url;
 }
 
 function Movie(movie) {
