@@ -16,10 +16,10 @@ API Keys required: Dark Skys, Google Geocoding, Yelp, MovieDB
 ## Change Log
 
 ## Credits and Collaborations
-Samm Hamm
-Adam Wittnam
-Heather Cherwaty
-Ryan Gallaway
+-Samm Hamm
+-Adam Wittnam
+-Heather Cherwaty
+-Ryan Gallaway
 
 
 ## Number and name of feature: Add Trails API
