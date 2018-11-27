@@ -4,7 +4,7 @@
 **Version**: 1.0.0
 
 ## Overview
-This lab is refactoring of Lab 6, but with a new paired programming partner. It will include the addition of two additional API's.
+This lab is refactoring of Lab 6, but with a new paired programming partner. It will include the addition of two additional API's..
 
 ## Getting Started
 JavaScript Dependancies: Express, CORS, Superagent, dotENV
