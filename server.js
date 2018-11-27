@@ -5,6 +5,7 @@
 const express = require('express');
 const superagent = require('superagent');
 const cors = require('cors');
+const pg = require('pg');
 
 //Load Environment Variables from the .env file
 require ('dotenv').config();
@@ -14,23 +15,24 @@ const PORT = process.env.PORT;
 const app = express();
 app.use(cors());
 
+// Database configuration
+const client = new pg.Client(process.env.DATABASE_URL);
+client.connect();
+client.on('error', err => console.error(err));
+
 //API route
 
-app.get('/location', (request, response) => {
-	searchToLatLong(request.query.data)
-	.then((location) => response.send(location))
-	.catch((error) => handleError(error, response));
-});
 
+app.get('/location', getLocation);
 app.get('/weather', getWeather);
+// app.get('/yelp', getYelp);
+// app.get('/movies', getMovies);
+// app.get('/trails', getTrails);
+// app.get('/meetups', getMeetup);
 
-app.get('/yelp', getYelp);
+//make sure the server is listening for requests.
+app.listen(PORT, () => console.log(`App is up on ${PORT}`));
 
-app.get('/movies', getMovies);
-
-app.get('/trails', getTrails);
-
-app.get('/meetups', getMeetup);
 
 //Error Handling
 function handleError(err, res) {
@@ -41,13 +43,17 @@ function handleError(err, res) {
 //Helper functions
 function searchToLatLong(query) {
 	const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
-// console.log(url);
 	return superagent.get(url)
 	.then(res => {
-		// console.log(res.body);
 		return new Location(query, res);
 	})
 	.catch((error, res) => handleError(error, res));
+}
+
+function getLocation(request, response) {
+	searchToLatLong(request.query.data)
+	.then((location) => response.send(location))
+	.catch((error) => handleError(error, response));
 }
 
 function getWeather(request, response) {
@@ -69,7 +75,6 @@ function getYelp(request, response) {
 	superagent.get(url)
 	.set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
 	.then( result => {
-		// console.log(result);
 		const yelpBusinesses = result.body.businesses.map(restaurant => {
 			return new Yelp(restaurant);
 		});
@@ -94,7 +99,6 @@ function getTrails(request, response) {
 	const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&key=${process.env.TRAILS_API_KEY}`;
 	superagent.get(url)
 	.then(result => {
-		// console.log(result.body.trails);
 		const trailList = result.body.trails.map( trail => {
 			return new Trail(trail);
 		});
@@ -171,6 +175,3 @@ function Meetup(meetupResult) {
 	this.host = meetupResult.group.name;
 	this.creation_date = new Date(meetupResult.created).toString().slice(0, 15);
 }
-
-//make sure the server is listening for requests.
-app.listen(PORT, () => console.log(`App is up on ${PORT}`));
