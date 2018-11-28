@@ -124,7 +124,7 @@ function Movie(movie) {
 	this.released_on = movie.release_date;
 	this.average_votes = movie.vote_average;
 	this.total_votes = movie.vote_count;
-	this.image_url = `http://image.tmdb.org/t/p/w185/${movie.poster_path}`
+	this.image_url = `http://image.tmdb.org/t/p/w185/${movie.poster_path}`;
 	this.overview = movie.overview;
 	this.popularity = movie.popularity;
 	this.created_at = Date.now();
@@ -136,14 +136,14 @@ Movie.deleteByLocationId = deleteByLocationId;
 
 Movie.prototype = {
 	save: function (location_id) {
-		const SQL = `INSERT INTO ${this.tableName} (title, released_on, average_votes, total_votes, image_url, overview, popularity, created_at, location_id);`;
+		const SQL = `INSERT INTO ${this.tableName} (title, released_on, average_votes, total_votes, image_url, overview, popularity, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
 		const values = [this.title, this.released_on, this.average_votes, this.total_votes, this.image_url, this.overview, this.popularity, this.created_at, location_id];
-
 		client.query(SQL, values);
 	}
 }
 
 function Trail(trail) {
+	this.tableName = 'trails';
 	this.trail_url = trail.url;
 	this.name = trail.name;
 	this.location = trail.location;
@@ -154,15 +154,41 @@ function Trail(trail) {
 	this.stars = trail.stars;
 	this.star_votes = trail.starVotes;
 	this.summary = trail.summary;
+	this.created_at = Date.now();
+}
+
+Trail.tableName = 'movies';
+Trail.lookup = lookup;
+Trail.deleteByLocationId = deleteByLocationId;
+
+Trail.prototype = {
+	save: function (location_id) {
+		const SQL = `INSERT INTO ${this.tableName} (name, location, length, trail_url, condition_date, condition_time, conditions, stars, star_votes, summary, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
+		const values = [this.name, this.location, this.length, this.trail_url, this.condition_date, this.condition_time, this.conditions, this.stars, this.star_votes, this.summary, this.created_at, location_id];
+		client.query(SQL, values);
+	}
 }
 
 function Meetup(meetupResult) {
+	this.tableName = 'meetups';
 	this.link = meetupResult.link;
 	this.name = meetupResult.name;
 	this.host = meetupResult.group.name;
 	this.creation_date = new Date(meetupResult.created).toString().slice(0, 15);
+	this.created_at = Date.now();
 }
 
+Meetup.tableName = 'meetups';
+Meetup.lookup = lookup;
+Meetup.deleteByLocationId = deleteByLocationId;
+
+Meetup.prototype = {
+	save: function (location_id) {
+		const SQL = `INSERT INTO ${this.tableName} (link, name, host, creation_date, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6)`;
+		const values = [this.link, this.name, this.host, this.creation_date, this.created_at, location_id];
+		client.query(SQL, values);
+	}
+}
 //++++++++++ Helper Functions ++++++++++++++
 //These are assigned to properties on the models
 
@@ -213,7 +239,7 @@ function getLocation(request, response) {
 				location.save()
 					.then(location => response.send(location));
 			})
-			.catch(error => handleError(error));		
+			.catch(error => handleError(error));
 		}
 	})
 }
@@ -293,7 +319,8 @@ function getMovies(request, response) {
 			}
 		},
 		cacheMiss: function () {
-			const url = `https://api.themoviedb.org/3/search/movie?query=${request.query.data.search_query}&api_key=${process.env.MOVIEDB_API_KEY}`
+			const url = `https://api.themoviedb.org/3/search/movie?query=${request.query.data.search_query}&api_key=${process.env.MOVIEDB_API_KEY}`;
+
 			return superagent.get(url)
 				.then(result => {
 					const movieSet = result.body.results.map( movie => {
@@ -309,25 +336,71 @@ function getMovies(request, response) {
 }
 
 function getTrails(request, response) {
-	const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&key=${process.env.TRAILS_API_KEY}`;
-	superagent.get(url)
-	.then(result => {
-		const trailList = result.body.trails.map( trail => {
-			return new Trail(trail);
-		});
-		response.send(trailList);
+	Trail.lookup({
+		tableName: Trail.tableName,
+		query: request.query.data,
+		cacheHit: function (result) {
+			let dataAgeInDays = (Date.now() - result.rows[0].created_at) / (1000 * 60 * 60 * 24);
+			if (dataAgeInDays > 7) {
+				Trail.deleteByLocationId(Trail.tableName, request.query.data.id);
+				this.cacheMiss();
+			} else {
+				response.send(result.rows[0]);
+			}
+		},
+		cacheMiss: function () {
+			const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&key=${process.env.TRAILS_API_KEY}`;
+			return superagent.get(url)
+				.then(result => {
+					const trailList = result.body.trails.map( trail => {
+						const newTrail = new Trail(trail);
+						newTrail.save(request.query.data.id);
+						return newTrail;
+					});
+					response.send(trailList);
+				})
+				.catch(error => handleError(error, response));
+		}
 	})
-	.catch(error => handleError(error, response));
 }
 
 function getMeetup(request, response) {
-	const url = `http://api.meetup.com/find/upcoming_events?lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
-	superagent.get(url)
-	.then(result => {
-		const meetupList = result.body.events.map( meet => {
-			return new Meetup(meet);
-		});
-		response.send(meetupList);
+	Meetup.lookup({
+		tableName: Meetup.tableName,
+		query: request.query.date,
+		cacheHit: function (result) {
+			let dataAgeInHours = (Date.now() - result.rows[0].created_at) / (1000 * 60 * 60);
+			if (dataAgeInHours > 24) {
+				Meetup.deleteByLocationId(Meetup.tableName, request.query.data.id);
+				this.cacheMiss();
+			} else {
+				response.send(result.rows[0]);
+			}
+		},
+		cacheMiss: function () {
+			const url = `http://api.meetup.com/find/upcoming_events?lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
+			return superagent.get(url)
+				.then(result => {
+					const meetupList = result.body.events.map( meet => {
+						const newMeetup = new Meetup(meet);
+						newMeetup.save(request.query.data.id);
+						return newMeetup;
+					});
+					response.send(meetupList);
+				})
+				.catch(error => handleError(error, response));			
+		}
 	})
-	.catch(error => handleError(error, response));
 }
+
+// function getMeetup(request, response) {
+// 	const url = `http://api.meetup.com/find/upcoming_events?lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
+// 	superagent.get(url)
+// 	.then(result => {
+// 		const meetupList = result.body.events.map( meet => {
+// 			return new Meetup(meet);
+// 		});
+// 		response.send(meetupList);
+// 	})
+// 	.catch(error => handleError(error, response));
+// }
