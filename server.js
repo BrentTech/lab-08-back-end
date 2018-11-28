@@ -392,15 +392,3 @@ function getMeetup(request, response) {
 		}
 	})
 }
-
-// function getMeetup(request, response) {
-// 	const url = `http://api.meetup.com/find/upcoming_events?lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
-// 	superagent.get(url)
-// 	.then(result => {
-// 		const meetupList = result.body.events.map( meet => {
-// 			return new Meetup(meet);
-// 		});
-// 		response.send(meetupList);
-// 	})
-// 	.catch(error => handleError(error, response));
-// }
